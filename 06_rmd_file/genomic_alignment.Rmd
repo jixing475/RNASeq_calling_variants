@@ -1,0 +1,173 @@
+---
+title: "Genome Alignment cleanup"
+author: "jixing"
+date: "11/7/2018"
+output: 
+  html_document:
+    theme: united
+    highlight: zenburn
+    toc: true
+    toc_float: yes
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+# work flow part 01
+![](/Users/zero/Desktop/GATK.png)
+
+## Software requirements
+
+These are all already installed, but here are the original links.
+
+  * [BVATools](http://bitbucket.org/mugqic/bvatools/downloads/)
+  * [SAMTools](http://sourceforge.net/projects/samtools/)
+  * STAR
+  * [Genome Analysis ToolKit](http://www.broadinstitute.org/gatk/)
+  * [Trimmomatic](http://www.usadellab.org/cms/?page=trimmomatic)
+
+## Setup
+```{bash}
+export SOFT_DIR=/usr/yours/
+export WORK_DIR=~/workspace
+export TRIMMOMATIC_JAR=$SOFT_DIR/Trimmomatic-0.36/trimmomatic-0.36.jar
+export GATK_JAR=$SOFT_DIR/gatk-4.0.1.2/gatk-package-4.0.1.2-local.jar
+export GATK_OLD_JAR=$SOFT_DIR/GenomeAnalysisTK-3.8/GenomeAnalysisTK.jar
+export BVATOOLS_JAR=$SOFT_DIR/bvatools-1.6/bvatools-1.6-full.jar 
+export REF=$WORK_DIR/reference/
+
+```
+
+## test data files
+```{bash}
+|-- raw_reads/               # fastq files
+    `-- 439/             # 439 sample directory
+    `-- 434/             # 434 sample directory
+    `-- 431/             # 431 sample directory
+`-- reference/               # reference and indexes
+`-- scripts/                 # command lines scripts
+`-- saved_results/           # precomputed final files
+```
+
+## Quality check
+```{bash}
+fastqc
+```
+
+## Trimming
+After this careful analysis of the raw data we see that
+
+  * Some reads have bad 3’ ends.
+  * no read has adapter sequences in it.
+```{bash}
+Trimmomatic
+```
+
+## Alignment
+```{bash}
+STAR
+```
+
+## cleaning up alignments
+
+### Indel realignment
+
+```{bash}
+java -Xmx2G  -jar ${GATK_OLD_JAR} \
+  -T RealignerTargetCreator \
+  -R ${REF}/hg19.fa \
+  -o alignment/439/realign.intervals \
+  -I alignment/439/439.sorted.bam \
+  -L chr1
+
+java -Xmx2G -jar ${GATK_OLD_JAR} \
+  -T IndelRealigner \
+  -R ${REF}/hg19.fa \
+  -targetIntervals alignment/439/realign.intervals \
+  -o alignment/439/439.realigned.sorted.bam \
+  -I alignment/439/439.sorted.bam
+```
+
+### Mark duplicates
+```{bash}
+java -Xmx2G -jar ${GATK_JAR} MarkDuplicates \
+  --REMOVE_DUPLICATES false --CREATE_INDEX true \
+  -I alignment/439/439.realigned.sorted.bam \
+  -O alignment/439/439.sorted.dup.bam \
+  --METRICS_FILE=alignment/439/439.sorted.dup.metrics
+```
+
+### Recalibration
+This is the last BAM cleaning up step.
+
+The goal for this step is to try to recalibrate base quality scores. The vendors tend to inflate the values of the bases in the reads. Also, this step tries to lower the scores of some biased motifs for some technologies.
+
+It runs in 2 steps, 1- Build covariates based on context and known snp sites 2- Correct the reads based on these metrics
+
+```{bash}
+java -Xmx2G -jar ${GATK_JAR} BaseRecalibrator \
+  -R ${REF}/hg19.fa \
+  --known-sites ${REF}/dbSNP_135_chr1.vcf.gz \
+  -L chr1:17704860-18004860 \
+  -O alignment/439/439.sorted.dup.recalibration_report.grp \
+  -I alignment/439/439.sorted.dup.bam
+
+java -Xmx2G -jar ${GATK_JAR} ApplyBQSR \
+  -R ${REF}/hg19.fa \
+  -bqsr alignment/439/439.sorted.dup.recalibration_report.grp \
+  -O alignment/439/439.sorted.dup.recal.bam \
+  -I alignment/439/439.sorted.dup.bam
+
+```
+
+## Extract Metrics
+
+### Compute coverage
+```{bash}
+java  -Xmx2G -jar ${GATK_OLD_JAR} \
+  -T DepthOfCoverage \
+  --omitDepthOutputAtEachBase \
+  --summaryCoverageThreshold 10 \
+  --summaryCoverageThreshold 25 \
+  --summaryCoverageThreshold 50 \
+  --summaryCoverageThreshold 100 \
+  --start 1 --stop 500 --nBins 499 -dt NONE \
+  -R ${REF}/hg19.fa \
+  -o alignment/439/439.sorted.dup.recal.coverage \
+  -I alignment/439/439.sorted.dup.recal.bam \
+  -L chr1:17700000-18100000
+
+#### Look at the coverage
+less -S alignment/439/439.sorted.dup.recal.coverage.sample_interval_summary
+```
+
+### Insert Size
+```{bash}
+java -Xmx2G -jar ${GATK_JAR} CollectInsertSizeMetrics \
+  -R ${REF}/hg19.fa \
+  -I alignment/439/439.sorted.dup.recal.bam \
+  -O alignment/439/439.sorted.dup.recal.metric.insertSize.tsv \
+  -H alignment/439/439.sorted.dup.recal.metric.insertSize.histo.pdf \
+  --METRIC_ACCUMULATION_LEVEL LIBRARY
+
+#look at the output
+less -S alignment/439/439.sorted.dup.recal.metric.insertSize.tsv
+```
+
+### Alignment metrics
+```{bash}
+java -Xmx2G -jar ${GATK_JAR} CollectAlignmentSummaryMetrics \
+  -R ${REF}/hg19.fa \
+  -I alignment/439/439.sorted.dup.recal.bam \
+  -O alignment/439/439.sorted.dup.recal.metric.alignment.tsv \
+  --METRIC_ACCUMULATION_LEVEL LIBRARY
+
+#### explore the results
+
+less -S alignment/439/439.sorted.dup.recal.metric.alignment.tsv
+```
+
+
+
