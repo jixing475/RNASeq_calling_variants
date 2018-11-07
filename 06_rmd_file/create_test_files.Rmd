@@ -1,0 +1,65 @@
+---
+title: "test files"
+author: "Jixing"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    fig_height: 3
+    fig_width: 5
+  pdf_document:
+    fig_height: 3
+    fig_width: 5
+  word_document:
+    fig_height: 3
+    fig_width: 5
+---
+
+```{r, setup, include=FALSE}
+require(mosaic)   # Load additional packages here 
+knitr::opts_chunk$set(
+  tidy=FALSE,     # display code as typed
+  size="small")   # slightly smaller font for code
+library(tidyverse)
+library(ggpubr)
+here <- here::here
+select <- dplyr::select
+```
+
+## Flowchart
+![](/Users/zero/Desktop/RNASeq_calling_variants/07_images/create_testfiles_flowchart.png)
+
+
+## get bed file for TP53:7157 and NUMB:8650
+```{r}
+# get a transcript database, which stores exon, trancript, and gene information
+library(GenomicFeatures)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+
+# in Bioconductor >= 3.1, also makeTxDbFromGRanges
+
+# saving and loading
+saveDb(txdb, file="txdb.sqlite")
+loadDb("txdb.sqlite")
+
+# extracting information from txdb
+g <- genes(txdb) # GRanges, just start to end, no exon/intron information
+
+# subset Grange
+TP53_NUMB  <- g[g$gene_id  %in% c("8650", "7157")]
+rtracklayer::export.bed(TP53_NUMB, "../03_processed_data/TP53_NUMB.bed")
+```
+
+
+
+## use bed file to subset bam 
+```{r}
+samtools view -L your.bed -b your.bam > subset.bam
+```
+
+
+## bam to fastq
+
+## bed file to gtf file
+
+## gtf to fasta
