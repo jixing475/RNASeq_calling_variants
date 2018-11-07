@@ -20,9 +20,10 @@ color = black ] // frame color
 edge [color = black]
         
     # edge statements
-    Bed -> {Bam GTF Gtf} [fillcolor = red]
+    bioconductor -> {Bed gtf fasta}
+    Bed -> {Bam} [fillcolor = red]
     Bam -> {Fastq} [fillcolor = red]
-    Gtf -> Fasta [fillcolor = red]
+
                             }
 ") 
 graph

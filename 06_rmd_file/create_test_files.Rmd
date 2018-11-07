@@ -28,38 +28,54 @@ select <- dplyr::select
 ## Flowchart
 ![](/Users/zero/Desktop/RNASeq_calling_variants/07_images/create_testfiles_flowchart.png)
 
-
-## get bed file for TP53:7157 and NUMB:8650
+## get bed file for TP53:7157 
+  1. input: gene entrezID
+  2. ouput: bed, gtf, fasta files
 ```{r}
 # get a transcript database, which stores exon, trancript, and gene information
 library(GenomicFeatures)
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 
-# in Bioconductor >= 3.1, also makeTxDbFromGRanges
-
-# saving and loading
-saveDb(txdb, file="txdb.sqlite")
-loadDb("txdb.sqlite")
-
 # extracting information from txdb
 g <- genes(txdb) # GRanges, just start to end, no exon/intron information
 
 # subset Grange
-TP53_NUMB  <- g[g$gene_id  %in% c("8650", "7157")]
-rtracklayer::export.bed(TP53_NUMB, "../03_processed_data/TP53_NUMB.bed")
+TP53  <- g[g$gene_id  %in% c("7157")]
+ 
+
+# bed file
+rtracklayer::export.bed(TP53, "../02_annotation_file/TP53.bed")
+# fasta file
+library(BSgenome.Hsapiens.UCSC.hg19)
+fasta <- getSeq(Hsapiens, TP53)
+library(Biostrings)
+writeXStringSet(fasta, file = "../02_annotation_file/TP53.fa", format = "fasta")
+# gtf file
+#grep -E  TP53\" genes.gtf > TP53.gtf
+
 ```
 
 
 
 ## use bed file to subset bam 
-```{r}
+```{bash}
 samtools view -L your.bed -b your.bam > subset.bam
 ```
 
 
 ## bam to fastq
+```{bash}
+bedtools bamtofastq -i subset.bam \
+                    -fq subset_1.fq \
+                    -fq2 subset_2.fq
+```
+
 
 ## bed file to gtf file
+```{r}
+
+```
+
 
 ## gtf to fasta
