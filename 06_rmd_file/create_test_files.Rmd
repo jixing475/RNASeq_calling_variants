@@ -42,20 +42,28 @@ g <- genes(txdb) # GRanges, just start to end, no exon/intron information
 
 # subset Grange
 TP53  <- g[g$gene_id  %in% c("7157")]
- 
+
+```
 
 # bed file
+```{r}
 rtracklayer::export.bed(TP53, "../02_annotation_file/TP53.bed")
+```
+
+
 # fasta file
+```{r}
 library(BSgenome.Hsapiens.UCSC.hg19)
 fasta <- getSeq(Hsapiens, TP53)
 library(Biostrings)
 writeXStringSet(fasta, file = "../02_annotation_file/TP53.fa", format = "fasta")
-# gtf file
-#grep -E  TP53\" genes.gtf > TP53.gtf
-
 ```
 
+
+# gtf file
+```{bash}
+grep -E  TP53\" genes.gtf > TP53.gtf
+```
 
 
 ## use bed file to subset bam 
@@ -72,10 +80,3 @@ bedtools bamtofastq -i subset.bam \
 ```
 
 
-## bed file to gtf file
-```{r}
-
-```
-
-
-## gtf to fasta
